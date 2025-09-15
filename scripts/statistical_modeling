@@ -1,0 +1,73 @@
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.utils import resample
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from scripts.data_preprocessing import preprocess_pipeline
+
+
+def run_logistic_regression(file_path):
+    X_train, X_test, y_train, y_test = preprocess_pipeline(file_path)
+
+    # Use the same selected features as in preprocessing
+    selected_features = [
+        'concave points_mean','area_worst','fractal_dimension_worst','smoothness_worst','symmetry_worst',
+        'fractal_dimension_mean','smoothness_mean','compactness_se','fractal_dimension_se','concave points_se',
+        'symmetry_se','perimeter_se','concavity_se','symmetry_mean','smoothness_se','texture_se','texture_mean'
+    ]
+    
+    # Select only the specified features from the available columns
+    available_features = [f for f in selected_features if f in X_train.columns]
+    
+    # Select only the available features 
+    X_train_selected = X_train[available_features]
+    X_test_selected = X_test[available_features]
+    
+    # Fit logistic regression model
+    model = LogisticRegression(penalty="l2", solver="liblinear", max_iter=1000)
+    model.fit(X_train_selected, y_train)
+
+    # Coeffs and odds ratios
+    coefs = model.coef_[0]
+    odds_ratios = np.exp(coefs)
+
+    # Bootstrap for confidence intervals
+    boot_coefs = []
+    for i in range(500):
+        X_res, y_res = resample(X_train_selected, y_train, random_state=i)
+        boot_model = LogisticRegression(penalty="l2", solver="liblinear", max_iter=1000)
+        boot_model.fit(X_res, y_res)
+        boot_coefs.append(boot_model.coef_[0])
+    boot_coefs = np.array(boot_coefs)
+
+    # Calculate confidence intervals
+    ci_lower = np.percentile(np.exp(boot_coefs), 2.5, axis=0)
+    ci_upper = np.percentile(np.exp(boot_coefs), 97.5, axis=0)
+
+    # Create summary table with correct feature names
+    summary_table = pd.DataFrame({
+        "Coefficient": coefs,
+        "Odds Ratio": odds_ratios,
+        "CI Lower": ci_lower,
+        "CI Upper": ci_upper
+    }, index=available_features)
+
+    # Save results
+    os.makedirs("outputs", exist_ok=True)
+    summary_table.to_csv("outputs/logistic_regression_summary.csv")
+
+    return model, summary_table, X_test_selected, y_test
+
+
+# Run pipeline
+if __name__ == "__main__":
+    model, summary_table, X_test, y_test = run_logistic_regression("data/breast-cancer.csv")
+    print("Logistic Regression Results (Selected Features Only):")
+    print("=" * 60)
+    print(summary_table.sort_values("Odds Ratio", ascending=False))
+    print(f"\nNumber of features used: {len(summary_table)}")
+    print(f"Features: {list(summary_table.index)}")
