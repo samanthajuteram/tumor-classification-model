@@ -1,0 +1,224 @@
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, classification_report, confusion_matrix
+from sklearn.metrics import roc_curve, precision_recall_curve
+import matplotlib.pyplot as plt
+import seaborn as sns
+import joblib
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from scripts.data_preprocessing import preprocess_pipeline
+
+
+def train_random_forest(X_train, y_train, random_state=42):
+
+    # Initialize Random Forest 
+    rf_model = RandomForestClassifier(
+        n_estimators=100,           
+        max_depth=10,              
+        min_samples_split=5,       
+        min_samples_leaf=2,        
+        random_state=random_state,
+        class_weight='balanced'    
+    )
+    
+    # Train the model
+    rf_model.fit(X_train, y_train)
+    
+    return rf_model
+
+
+def evaluate_model(model, X_test, y_test):
+
+    # Generate predictions
+    y_pred = model.predict(X_test)
+    y_pred_proba = model.predict_proba(X_test)[:, 1]  # Probability of positive class
+    
+    # Calculate metrics
+    accuracy = accuracy_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred)
+    roc_auc = roc_auc_score(y_test, y_pred_proba)
+    
+    # Create metrics summary
+    metrics = {
+        'accuracy': accuracy,
+        'f1_score': f1,
+        'roc_auc': roc_auc
+    }
+    
+    # Print results
+    print("Model Performance Metrics:")
+    print("=" * 40)
+    print(f"Accuracy:  {accuracy:.4f}")
+    print(f"F1 Score:  {f1:.4f}")
+    print(f"ROC AUC:   {roc_auc:.4f}")
+    print("\nClassification Report:")
+    print(classification_report(y_test, y_pred, target_names=['Benign', 'Malignant']))
+    
+    return metrics, y_pred, y_pred_proba
+
+
+def extract_feature_importances(model, feature_names):
+    importances = model.feature_importances_
+    
+    # Create feature importance dataframe
+    feature_importance_df = pd.DataFrame({
+        'feature': feature_names,
+        'importance': importances
+    }).sort_values('importance', ascending=False)
+    
+    return feature_importance_df
+
+
+def save_predictions(X_test, y_test, y_pred, y_pred_proba, output_dir="outputs"):
+    # Create predictions dataframe
+    predictions_df = pd.DataFrame({
+        'true_label': y_test,
+        'predicted_label': y_pred,
+        'predicted_probability': y_pred_proba,
+        'correct_prediction': (y_test == y_pred).astype(int)
+    })
+    
+    # Add feature values for reference 
+    feature_cols = X_test.columns[:5]  # Top 5 features for reference
+    for col in feature_cols:
+        predictions_df[f'feature_{col}'] = X_test[col].values
+    
+    # Save to CSV
+    os.makedirs(output_dir, exist_ok=True)
+    predictions_df.to_csv(f"{output_dir}/predictions.csv", index=False)
+    
+    print(f"\nPredictions saved to {output_dir}/predictions.csv")
+    return predictions_df
+
+
+def create_visualizations(model, X_test, y_test, y_pred_proba, feature_importance_df, output_dir="outputs"):
+    # Set up the plotting style
+    plt.style.use('default')
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    fig.suptitle('Random Forest Model Performance', fontsize=16)
+    
+    # Feature Importances (top 10)
+    top_features = feature_importance_df.head(10)
+    axes[0, 0].barh(range(len(top_features)), top_features['importance'])
+    axes[0, 0].set_yticks(range(len(top_features)))
+    axes[0, 0].set_yticklabels(top_features['feature'])
+    axes[0, 0].set_xlabel('Importance')
+    axes[0, 0].set_title('Top 10 Feature Importances')
+    axes[0, 0].invert_yaxis()
+    
+    # ROC Curve
+    fpr, tpr, _ = roc_curve(y_test, y_pred_proba)
+    roc_auc = roc_auc_score(y_test, y_pred_proba)
+    axes[0, 1].plot(fpr, tpr, label=f'ROC Curve (AUC = {roc_auc:.3f})')
+    axes[0, 1].plot([0, 1], [0, 1], 'k--', label='Random Classifier')
+    axes[0, 1].set_xlabel('False Positive Rate')
+    axes[0, 1].set_ylabel('True Positive Rate')
+    axes[0, 1].set_title('ROC Curve')
+    axes[0, 1].legend()
+    axes[0, 1].grid(True, alpha=0.3)
+    
+    # Precision-Recall Curve
+    precision, recall, _ = precision_recall_curve(y_test, y_pred_proba)
+    axes[1, 0].plot(recall, precision)
+    axes[1, 0].set_xlabel('Recall')
+    axes[1, 0].set_ylabel('Precision')
+    axes[1, 0].set_title('Precision-Recall Curve')
+    axes[1, 0].grid(True, alpha=0.3)
+    
+    # Confusion Matrix
+    y_pred = model.predict(X_test)
+    cm = confusion_matrix(y_test, y_pred)
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+                xticklabels=['Benign', 'Malignant'],
+                yticklabels=['Benign', 'Malignant'],
+                ax=axes[1, 1])
+    axes[1, 1].set_title('Confusion Matrix')
+    axes[1, 1].set_xlabel('Predicted')
+    axes[1, 1].set_ylabel('Actual')
+    
+    plt.tight_layout()
+    
+    # Save the plot
+    os.makedirs(output_dir, exist_ok=True)
+    plt.savefig(f"{output_dir}/model_performance.png", dpi=300, bbox_inches='tight')
+    plt.show()
+    
+    print(f"\nVisualization saved to {output_dir}/model_performance.png")
+
+
+def run_ml_pipeline(file_path):
+    print("Starting Machine Learning Pipeline...")
+    print("=" * 50)
+    
+    # Load and preprocess data
+    print("1. Loading and preprocessing data...")
+    X_train, X_test, y_train, y_test = preprocess_pipeline(file_path)
+    
+    # Select the same features as in statistical modeling
+    selected_features = [
+        'concave points_mean','area_worst','fractal_dimension_worst','smoothness_worst','symmetry_worst',
+        'fractal_dimension_mean','smoothness_mean','compactness_se','fractal_dimension_se','concave points_se',
+        'symmetry_se','perimeter_se','concavity_se','symmetry_mean','smoothness_se','texture_se','texture_mean'
+    ]
+    
+    # Filter to selected features
+    X_train_selected = X_train[selected_features]
+    X_test_selected = X_test[selected_features]
+    
+    print(f"   - Training samples: {len(X_train_selected)}")
+    print(f"   - Test samples: {len(X_test_selected)}")
+    print(f"   - Features used: {len(selected_features)}")
+    
+    # Train Random Forest model
+    print("\n2. Training Random Forest model...")
+    model = train_random_forest(X_train_selected, y_train)
+    print("   - Model training completed")
+    
+    # Evaluate model
+    print("\n3. Evaluating model performance...")
+    metrics, y_pred, y_pred_proba = evaluate_model(model, X_test_selected, y_test)
+    
+    # Extract feature importances
+    print("\n4. Extracting feature importances...")
+    feature_importance_df = extract_feature_importances(model, selected_features)
+    print("Top 5 Most Important Features:")
+    print(feature_importance_df.head())
+    
+    # Save results
+    print("\n5. Saving results...")
+    
+    # Save predictions
+    predictions_df = save_predictions(X_test_selected, y_test, y_pred, y_pred_proba)
+    
+    # Save feature importances
+    feature_importance_df.to_csv("outputs/feature_importances.csv", index=False)
+    print("Feature importances saved to outputs/feature_importances.csv")
+    
+    # Save model metrics
+    metrics_df = pd.DataFrame([metrics])
+    metrics_df.to_csv("outputs/model_metrics.csv", index=False)
+    print("Model metrics saved to outputs/model_metrics.csv")
+    
+    # Save trained model
+    joblib.dump(model, "outputs/trained_model.pkl")
+    print("Trained model saved to outputs/trained_model.pkl")
+    
+    # Create visualizations
+    print("\n6. Creating visualizations...")
+    create_visualizations(model, X_test_selected, y_test, y_pred_proba, feature_importance_df)
+    
+    print("\n" + "=" * 50)
+    print("Machine Learning Pipeline Complete!")
+    
+    return model, metrics, feature_importance_df, predictions_df
+
+
+# Run the pipeline
+if __name__ == "__main__":
+    model, metrics, feature_importances, predictions = run_ml_pipeline("data/breast-cancer.csv")
+
+
