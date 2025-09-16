@@ -20,8 +20,8 @@ This project develops and deploys a machine learning model to assist in breast c
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusesamantha-juteram/tumor-classification.git
-cd tumor-classification
+git clone https://github.com/yourusesamantha-juteram/tumor-classification-model.git
+cd tumor-classification-model
 ```
 
 2. **Create environment**
