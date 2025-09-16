@@ -15,7 +15,6 @@ from scripts.data_preprocessing import preprocess_pipeline
 
 
 def get_models():
-    """Define models to compare"""
     models = {
         'Random Forest': RandomForestClassifier(
             n_estimators=100, max_depth=10, min_samples_split=5,
@@ -38,7 +37,6 @@ def get_models():
 
 
 def evaluate_models_cv(models, X, y, cv_folds=5):
-    """Evaluate models using cross-validation"""
     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
     
     results = {}
@@ -66,7 +64,6 @@ def evaluate_models_cv(models, X, y, cv_folds=5):
 
 
 def evaluate_models_holdout(models, X_train, X_test, y_train, y_test):
-    """Evaluate models on holdout test set"""
     holdout_results = {}
     
     for name, model in models.items():
@@ -89,8 +86,6 @@ def evaluate_models_holdout(models, X_train, X_test, y_train, y_test):
 
 
 def create_comparison_visualizations(cv_results, holdout_results, output_dir="outputs"):
-    """Create comparison visualizations"""
-    
     # Set up the plot
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
     fig.suptitle('Model Comparison Results', fontsize=16)
