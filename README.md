@@ -20,7 +20,7 @@ This project develops and deploys a machine learning model to assist in breast c
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusesamantha-juteram/tumor-classification-model.git
+git clone https://github.com/samanthajuteram/tumor-classification-model.git
 cd tumor-classification-model
 ```
 
@@ -98,7 +98,7 @@ python api.py
 }
 ```
 
-## 📊 Model Performance
+##  Model Performance
 
 | Metric | Value |
 |--------|-------|
@@ -117,7 +117,7 @@ python api.py
 | Random Forest | 95.3% ± 2.8% | 95.6% | 98.9% |
 | Gradient Boosting | 94.7% ± 3.6% | 95.6% | 98.6% |
 
-## 🧪 Running Tests
+## Running Tests
 
 ```bash
 # Test the API
@@ -196,4 +196,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ##  Contact
 
 Your Name - [smjuteram@hotmail.com](mailto:smjuteram@hotmail.com)
-Project Link: [https://github.com/samantha-juteram/tumor-classification](https://github.com/samantha-juteram/tumor-classification)
+
+Project Link: [https://github.com/samantha-juteram/tumor-classification-model](https://github.com/samanthajuteram/tumor-classification-model)
